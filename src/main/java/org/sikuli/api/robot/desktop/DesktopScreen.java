@@ -12,7 +12,7 @@ import javax.imageio.ImageIO;
 
 import org.sikuli.api.Screen;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 /**
  * The DesktopScreen class defines methods for retrieving properties of the connected screen(s).
  *
@@ -97,7 +97,7 @@ public class DesktopScreen implements Screen {
 	 * @return a String representing this DesktopScreen object's screen id.
 	 */
 	public String toString(){
-		return Objects.toStringHelper(this).add("id",getScreenId()).toString();
+		return MoreObjects.toStringHelper(this).add("id", getScreenId()).toString();
 	}
 	
 	/**

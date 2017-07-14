@@ -1,6 +1,6 @@
 package org.sikuli.api;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 /**
  * This class provides manipulation methods that can be used for the default screen location.
  *
@@ -46,7 +46,7 @@ public class DefaultScreenLocation implements ScreenLocation {
 	 * @return a String representing this DefaultScreenLocation object's coordinate and screen values.
 	 */
 	public String toString(){
-		return Objects.toStringHelper(this).add("x",x).add("y",y)
+		return MoreObjects.toStringHelper(this).add("x",x).add("y",y)
 				.add("screen",screen).toString();
 	}
 

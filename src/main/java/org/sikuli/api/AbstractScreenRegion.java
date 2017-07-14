@@ -2,7 +2,7 @@ package org.sikuli.api;
 
 import java.awt.Rectangle;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 /**
  * AbstractScreenRegion is the abstract base class for all screen region contexts.
  * 
@@ -79,8 +79,8 @@ abstract public class AbstractScreenRegion implements ScreenRegion {
 	
 	@Override
 	public String toString(){
-		return Objects.toStringHelper(this).add("screen", screen).				
-				add("x",x).add("y",y).add("width",width).add("height",height).add("score",score).toString();			
+		return MoreObjects.toStringHelper(this).add("screen", screen).
+				add("x",x).add("y",y).add("width",width).add("height",height).add("score",score).toString();
 	}
 	
 	@Override	
