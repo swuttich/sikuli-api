@@ -1,5 +1,10 @@
 package org.sikuli.api;
 
+import static org.bytedeco.javacpp.opencv_core.cvAvg;
+import static org.bytedeco.javacpp.opencv_core.cvRect;
+import static org.bytedeco.javacpp.opencv_core.cvResetImageROI;
+import static org.bytedeco.javacpp.opencv_core.cvSetImageROI;
+
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -9,10 +14,10 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 
-import static org.bytedeco.javacpp.opencv_core.*;
-import static org.bytedeco.javacpp.opencv_imgproc.*;
-import org.bytedeco.javacpp.*;
-
+import org.bytedeco.javacpp.opencv_core.CvScalar;
+import org.bytedeco.javacpp.opencv_core.IplImage;
+import org.bytedeco.javacv.Java2DFrameConverter;
+import org.bytedeco.javacv.OpenCVFrameConverter;
 import org.sikuli.api.SearchByTextureAndColorAtOriginalResolution.ColorRegionMatch;
 import org.sikuli.core.cv.ImagePreprocessor;
 import org.sikuli.core.cv.VisionUtils;
@@ -36,6 +41,7 @@ import com.google.common.primitives.Doubles;
  *
  */
 public class ColorImageTarget extends ImageTarget {
+
 	/**
 	 * Creates a ColorImageTarget from an image at a given URL.
 	 * 
@@ -64,22 +70,19 @@ public class ColorImageTarget extends ImageTarget {
 	 * @return returns 0.9 as the default minimum matching score for this ColorImageTarget.
 	 */
 	@Override
-	protected double getDefaultMinScore(){		
+	protected double getDefaultMinScore(){
 		return 0.9;	
 	}
 
 	@Override
 	protected List<ScreenRegion> getUnorderedMatches(ScreenRegion screenRegion){
-		
-		
 		BufferedImage screenImage = screenRegion.capture();
-		
+
 		SearchByTextureAndColorAtOriginalResolution s = new 
-				SearchByTextureAndColorAtOriginalResolution(IplImage.createFrom(screenImage),
-						IplImage.createFrom(targetImage));
+				SearchByTextureAndColorAtOriginalResolution(screenImage, targetImage);
 		
-		s.execute();		
-		final List<TemplateMatcher.Result> matches = Lists.newArrayList();		
+		s.execute();
+		final List<TemplateMatcher.Result> matches = Lists.newArrayList();
 		while(matches.size() < getLimit()){
 			ColorRegionMatch m = s.fetchNext();
 			if (m.getScore() >= getMinScore()){
@@ -106,25 +109,35 @@ class SearchByTextureAndColorAtOriginalResolution {
 
 	static private Logger logger = LoggerFactory.getLogger(SearchByTextureAndColorAtOriginalResolution.class);
 
+	private BufferedImage inpQuery;
+	private BufferedImage inpInput;
+
 	private IplImage query;
-	private IplImage input;		
+	private IplImage input;
 
 	private CvScalar avergerColorOfTheQueryImage;
 	private IplImage resultMatrix = null;
 
-	public SearchByTextureAndColorAtOriginalResolution(IplImage input, IplImage query){
-		this.input = input;
-		this.query = query;
+	private Java2DFrameConverter jConv = new Java2DFrameConverter();
+	private OpenCVFrameConverter.ToIplImage openCVConv = new OpenCVFrameConverter.ToIplImage();
+
+	public SearchByTextureAndColorAtOriginalResolution(BufferedImage input, BufferedImage query){
+		this.inpInput = input;
+		this.inpQuery = query;
+
+		this.query = openCVConv.convert(jConv.convert(inpQuery));
+		this.input = openCVConv.convert(jConv.convert(inpInput));
 	}
 
 	public void execute(){
 		this.resultMatrix = TemplateMatchingUtilities.computeTemplateMatchResultMatrix(
-				ImagePreprocessor.createGrayscale(input), 
+				ImagePreprocessor.createGrayscale(input),
 				ImagePreprocessor.createGrayscale(query));
 		// compute average color of the query image		
 		logger.trace("channels:" + query.nChannels());
 		logger.trace("alpha channel:" + query.alphaChannel());
-		logger.trace("bt:" + query.getBufferedImageType());
+		logger.trace("bt:" + inpQuery.getType());
+
 		if (query.nChannels()==4){
 			// When the input image has an alpha channel, the color space is abgr 
 			// and must be converted to bgr in order to compare its color to captured screen data
@@ -162,16 +175,17 @@ class SearchByTextureAndColorAtOriginalResolution {
 	// return the raw distance score 
 	private double calculateColorDifferenceBetweenMatchedRegionAndTarget(Rectangle m){
 		// compute the average color of the found match
-		cvSetImageROI(input, cvRect(m.x,m.y,m.width,m.height));			
-		CvScalar averageColorOfTheMatchedRegion = cvAvg(input, null);			
+		cvSetImageROI(input, cvRect(m.x,m.y,m.width,m.height));
+		CvScalar averageColorOfTheMatchedRegion = cvAvg(input);
 		double diff = calculateL1Distance(avergerColorOfTheQueryImage, averageColorOfTheMatchedRegion);
-		cvResetImageROI(input);						
+		cvResetImageROI(input);
 		return diff;
 	}
 
 	// return a score between 0 and 1
 	private double calculateColorMatchScore(Rectangle r){
 		double rawScore =  calculateColorDifferenceBetweenMatchedRegionAndTarget(r);
+		//System.out.println("Color score: " + rawScore);
 		return (255 - Math.min(rawScore,255))/(255);
 	}
 
@@ -186,10 +200,11 @@ class SearchByTextureAndColorAtOriginalResolution {
 		public double getScore(){
 			double s1 = textureScore;
 			double s2 = colorScore;
-			//			double s = (s1+s2)/2;
+			//double s = (s1+s2)/2;
 			double s;
 			if (s2 > 0.85){
 				s = s1;
+				//s = (s1+s2)/ (double)2;
 			}else{
 				s = 0;
 			}
@@ -213,7 +228,7 @@ class SearchByTextureAndColorAtOriginalResolution {
 		TemplateMatchResult result = TemplateMatchingUtilities.fetchNextBestMatch(resultMatrix, query);
 
 		ColorRegionMatch newMatch = new ColorRegionMatch(result.getBounds());
-		newMatch.colorScore = calculateColorMatchScore(result.getBounds());			
+		newMatch.colorScore = calculateColorMatchScore(result.getBounds());
 		newMatch.textureScore = result.score;
 		return newMatch;
 	}
@@ -238,21 +253,19 @@ class SearchByTextureAndColorAtOriginalResolution {
 
 			// get new match
 			ColorRegionMatch newMatch = fetchNextColorRegionMath();
-			logger.trace("prefecth (" + prefetchedCandidates.size() + ")" + newMatch);
+			logger.trace("prefetch (" + prefetchedCandidates.size() + ")" + newMatch);
 
 			double dropInTextureSimilarity = previousMatch == null ? 0 : 
 				(1.0 - newMatch.textureScore / previousMatch.textureScore);
 
 			boolean isDropInTextureSimilaritySingificant =  dropInTextureSimilarity > 0.15;
 
-			//System.out.println("Drop:" + String.format("%1.2f",dropInTextureSimilarity));
 
-
-			if (isDropInTextureSimilaritySingificant){		
+			if (isDropInTextureSimilaritySingificant){
 				previousMatch = newMatch;
 				break;
 			}else{
-				prefetchedCandidates.add(newMatch);					
+				prefetchedCandidates.add(newMatch);
 			}
 
 
@@ -276,7 +289,7 @@ class SearchByTextureAndColorAtOriginalResolution {
 			prefetch();
 		}
 
-		ColorRegionMatch colorRegionMatch = prefetchedCandidates.poll();			
+		ColorRegionMatch colorRegionMatch = prefetchedCandidates.poll();
 		return colorRegionMatch;
 	}
 }

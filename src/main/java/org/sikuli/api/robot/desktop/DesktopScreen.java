@@ -1,5 +1,7 @@
 package org.sikuli.api.robot.desktop;
 
+import static org.bytedeco.javacpp.opencv_imgproc.cvCvtColor;
+
 import java.awt.Dimension;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
@@ -10,7 +12,10 @@ import java.io.InputStream;
 
 import javax.imageio.ImageIO;
 
+import org.bytedeco.javacpp.opencv_core.IplImage;
+import org.bytedeco.javacpp.opencv_imgproc;
 import org.sikuli.api.Screen;
+import org.sikuli.core.cv.ImageConverter;
 
 import com.google.common.base.MoreObjects;
 /**
@@ -33,21 +38,33 @@ public class DesktopScreen implements Screen {
 	 * @throws IOException If an input or output exception occurred.
 	 */
 	@Override
-	public BufferedImage getScreenshot(int x, int y, int width, int height) {					
+	public BufferedImage getScreenshot(int x, int y, int width, int height) {
 		BufferedImage image = AWTDesktop.captureScreenshot(getId(), x, y, width, height);
-
-		// Java Robot returns a buffered image of the type TYPE_INT_RGB
-		// JavaCV IplImage has trouble handling TYPE_INT_RGB 
-		// The workaround is to write it to a byte array and read it back to get
-		// a buffered image of the type TYPE_3BYTE_RGB
-		try {
-			ByteArrayOutputStream os = new ByteArrayOutputStream();
-			ImageIO.write(image, "png", os);
-			InputStream is = new ByteArrayInputStream(os.toByteArray());
-			return ImageIO.read(is);
-		} catch (IOException e) {
-		}	
-		return null;
+		// Seems to work better if we convert the image to BGRA here (and later remove it again)
+		if (image.getType() == BufferedImage.TYPE_INT_RGB) {
+			// Java Robot returns a buffered image of the type TYPE_INT_RGB
+			// JavaCV IplImage has trouble handling TYPE_INT_RGB
+			// The workaround is to write it to a byte array and read it back to get
+			// a buffered image of the type TYPE_3BYTE_BGR
+			try {
+				ByteArrayOutputStream os = new ByteArrayOutputStream();
+				ImageIO.write(image, "png", os);
+				InputStream is = new ByteArrayInputStream(os.toByteArray());
+				image = ImageIO.read(is);
+			} catch (IOException e) {
+			}
+		}
+		int mode = -1;
+		if (image.getType() == BufferedImage.TYPE_3BYTE_BGR) {
+			mode = opencv_imgproc.CV_BGR2BGRA;
+		}
+		if (mode > -1) {
+			IplImage img = ImageConverter.convert(image);
+			IplImage img2 = IplImage.create(img.width(), img.height(), img.depth(), 4);
+			cvCvtColor(img, img2, mode);
+			image = ImageConverter.convert(img2);
+		}
+		return image;
 	}
 
 	@Override

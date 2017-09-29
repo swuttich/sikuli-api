@@ -107,7 +107,7 @@ public class ImageTarget extends DefaultTarget implements Target {
 	 */
 	@Override
 	protected double getDefaultMinScore(){
-		return 0.7;
+		return 0.65;
 	}
 
 	@Override

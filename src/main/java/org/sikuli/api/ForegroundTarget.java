@@ -3,11 +3,14 @@ package org.sikuli.api;
 import java.awt.image.BufferedImage;
 import java.util.List;
 
+import org.sikuli.core.cv.ImageConverter;
 import org.sikuli.core.cv.VisionUtils;
 
 import com.google.common.collect.Lists;
+
 import static org.bytedeco.javacpp.opencv_core.*;
 import static org.bytedeco.javacpp.opencv_imgproc.*;
+
 import org.bytedeco.javacpp.*;
 
 /**
@@ -30,7 +33,7 @@ public class ForegroundTarget extends DefaultTarget implements Target {
 	protected List<ScreenRegion> getUnorderedMatches(ScreenRegion screenRegion) {
 		
 		BufferedImage image = screenRegion.capture();
-		IplImage foregroundMask = VisionUtils.computeForegroundMaskOf(IplImage.createFrom(image));
+		IplImage foregroundMask = VisionUtils.computeForegroundMaskOf(ImageConverter.convert(image));
 		List<CvRect> blobs = VisionUtils.detectBlobs(foregroundMask);
 		
 		List<ScreenRegion> results = Lists.newArrayList();
